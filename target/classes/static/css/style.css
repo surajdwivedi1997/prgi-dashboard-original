@@ -1,0 +1,104 @@
+/* 🔹 Your existing CSS (unchanged) */
+body{font-family:'Poppins',sans-serif;margin:0;background:#F9FAFB;color:#222}
+header{padding:16px 20px;border-bottom:1px solid #E5E9F0;background:#fff;position:sticky;top:0;z-index:10}
+.filters{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.action-row{display:flex;gap:10px;align-items:center;margin-top:6px}
+.filters select{padding:10px 14px;border:1px solid #ddd;border-radius:10px;font-size:14px;background:#fff;cursor:pointer;transition:all .2s ease-in-out;box-shadow:0 2px 6px rgba(0,0,0,.05)}
+.filters select:hover{border-color:#74C0FC;box-shadow:0 4px 10px rgba(116,192,252,.25)}
+.filters select:focus{outline:none;border-color:#228BE6;box-shadow:0 0 0 3px rgba(34,139,230,.3)}
+#btnApply{padding:10px 18px;border:none;border-radius:10px;font-size:14px;font-weight:600;background:linear-gradient(135deg,#74C0FC,#228BE6);color:#fff;cursor:pointer;transition:all .25s ease-in-out;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+#btnApply:hover{transform:translateY(-2px);box-shadow:0 6px 14px rgba(34,139,230,.4)}
+#btnApply:active{transform:scale(.97);box-shadow:0 2px 6px rgba(34,139,230,.2)}
+#btnExcel{padding:10px 18px;border:none;border-radius:10px;font-size:14px;font-weight:600;background:linear-gradient(135deg,#69db7c,#37b24d);color:#fff;cursor:pointer;transition:all .25s ease-in-out;box-shadow:0 2px 6px rgba(0,0,0,.1)}
+#btnExcel:hover{transform:translateY(-2px);box-shadow:0 6px 14px rgba(55,178,77,.4)}
+#btnExcel:active{transform:scale(.97);box-shadow:0 2px 6px rgba(55,178,77,.2)}
+.filters .info{color:#777;font-size:13px}
+main{padding:20px;max-width:1280px;margin:0 auto}
+.module{background:#fff;border-radius:14px;padding:16px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.05);transition:.3s}
+.module:hover{box-shadow:0 6px 20px rgba(0,0,0,.12);transform:translateY(-3px)}
+.module h2{margin-bottom:16px;font-size:20px;padding:10px 14px;border-radius:10px;background:#f1f3f5;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.toggle-icon{font-weight:700;font-size:22px;color:#228BE6;margin-left:auto;text-align:right;transition:transform .2s ease}
+.toggle-icon.open{transform:rotate(0deg)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;transition:max-height .4s ease,padding .3s ease}
+.card{border-radius:14px;padding:16px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.06);transition:transform .2s,box-shadow .2s;cursor:default}
+.card:hover{transform:translateY(-4px);box-shadow:0 6px 16px rgba(0,0,0,.1)}
+.status{font-size:14px;font-weight:600;margin-bottom:8px}
+.count{display:inline-block;padding:6px 14px;font-size:18px;font-weight:700;border-radius:999px;color:#222}
+.card:nth-child(1) .count{background:#A5D8FF}.card:nth-child(2) .count{background:#B2F2BB}.card:nth-child(3) .count{background:#FFE066}.card:nth-child(4) .count{background:#FFD6A5}.card:nth-child(5) .count{background:#FFA8A8}.card:nth-child(6) .count{background:#C8F7C5}
+@media (max-width:767px){.module .grid{max-height:0;overflow:hidden;padding-top:0}.module.open .grid{max-height:2000px;padding-top:10px}.toggle-icon{display:inline-block}}
+@media (min-width:768px){.module .grid{display:grid!important;max-height:none!important;padding-top:10px!important}.toggle-icon{display:none}}
+
+/* 🔹 Modal styles */
+.modal {
+    display: none;
+    position: fixed;
+    z-index: 1000;
+    left: 0; top: 0;
+    width: 100%; height: 100%;
+    background-color: rgba(0,0,0,0.4);
+}
+.modal-content {
+    background: #fff;
+    margin: 6% auto;
+    padding: 20px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 1000px;
+    box-shadow: 0 4px 10px rgba(0,0,0,.2);
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+.modal .close {
+    float: right;
+    font-size: 22px;
+    cursor: pointer;
+}
+
+/* 🔹 Scrollable modal body */
+.modal-body {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: auto;
+    margin-top: 12px;
+}
+
+/* 🔹 Table inside modal */
+.modal-body table {
+    border-collapse: collapse;
+    min-width: 800px; /* ensures horizontal scroll */
+    width: 100%;
+}
+.modal-body th, .modal-body td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    font-size: 14px;
+    white-space: nowrap;
+}
+.modal-body th {
+    background: #f5f5f5;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+/* 🔹 Spinner styles */
+.spinner-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 180px;
+}
+.spinner {
+    border: 6px solid #f3f3f3;
+    border-top: 6px solid #228BE6;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
