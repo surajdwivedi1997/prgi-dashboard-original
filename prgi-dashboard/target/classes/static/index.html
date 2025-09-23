@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>PRGI Applications Dashboard</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        /* 🔹 Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            position: relative;
+            background: #fff;
+            margin: 6% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 1000px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+        .modal .close {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            font-size: 26px;
+            font-weight: bold;
+            color: #555;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .modal .close:hover {
+            color: #e03131;
+            transform: scale(1.2) rotate(90deg);
+        }
+
+        /* 🔹 Scrollable modal body */
+        #modalBody {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: auto;
+            margin-top: 12px;
+        }
+
+        /* 🔹 Table wrapper */
+        .table-wrapper {
+            overflow-x: auto;
+            max-height: 70vh;
+        }
+
+        /* 🔹 Table styles */
+        table {
+            border-collapse: collapse;
+            min-width: 800px;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            font-size: 14px;
+            text-align: left;
+            white-space: nowrap;
+        }
+        th {
+            background: #f4f4f4;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+
+        /* 🔹 Centered spinner */
+        .spinner-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+        }
+        .spinner {
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <div class="filters">
+        <strong style="font-size: 18px;">Application Status Report of Press Sewa Portal</strong>
+        <div class="action-row">
+            <select id="rangeSelect">
+                <option value="">-- Select --</option>
+                <option value="2025-09-08|2025-09-18">08-09-2025 to 18-09-2025</option>
+            </select>
+            <button id="btnApply">Apply</button>
+            <button id="btnExcel" style="display:none;">Excel</button>
+        </div>
+        <span id="info" class="info"></span>
+    </div>
+</header>
+
+<main id="modules"></main>
+
+<!-- 🔹 Modal -->
+<div id="dataModal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h3 id="modalTitle"></h3>
+        <div id="modalBody"></div>
+    </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="js/app.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        buildShell();
+
+        const applyBtn = document.getElementById('btnApply');
+        const excelBtn = document.getElementById('btnExcel');
+        const modal = document.getElementById("dataModal");
+        const closeBtn = modal.querySelector(".close");
+
+        if (applyBtn) {
+            applyBtn.addEventListener('click', () => {
+                loadSummary().then(() => {
+                    excelBtn.style.display = "inline-block";
+                    attachCardClicks();
+                });
+            });
+        }
+
+        if (excelBtn) {
+            excelBtn.addEventListener('click', exportToExcel);
+        }
+
+        // 🔹 Modal logic with body scroll lock
+        closeBtn.onclick = () => closeModal();
+        window.onclick = (e) => { if (e.target === modal) closeModal(); };
+
+        function attachCardClicks() {
+            const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
+            if (newAppCard) {
+                newAppCard.addEventListener("click", () => {
+                    fetchAndShow("/api/new-registration/new-applications", "New Applications");
+                });
+            }
+            const deficientCard = document.getElementById("card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER");
+            if (deficientCard) {
+                deficientCard.addEventListener("click", () => {
+                    fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
+                });
+            }
+        }
+
+        function fetchAndShow(url, title) {
+            document.getElementById("modalTitle").textContent = title;
+            document.getElementById("modalBody").innerHTML =
+                "<div class='spinner-container'><div class='spinner'></div></div>";
+            modal.style.display = "block";
+            document.body.style.overflow = "hidden";  // ✅ disable background scroll
+
+            fetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById("modalBody").innerHTML = buildTable(data);
+                })
+                .catch(err => {
+                    console.error("Error:", err);
+                    document.getElementById("modalBody").innerHTML =
+                        "<p style='color:red; text-align:center;'>Failed to load data.</p>";
+                });
+        }
+
+        function closeModal() {
+            modal.style.display = "none";
+            document.body.style.overflow = ""; // ✅ re-enable background scroll
+        }
+
+        function buildTable(data) {
+            if (!data || data.length === 0) return "<p>No records found.</p>";
+
+            let cols = Object.keys(data[0]);
+            let html = "<div class='table-wrapper'><table><thead><tr>";
+            cols.forEach(c => html += `<th>${c}</th>`);
+            html += "</tr></thead><tbody>";
+
+            data.forEach(row => {
+                html += "<tr>";
+                cols.forEach(c => html += `<td>${row[c] ?? ""}</td>`);
+                html += "</tr>";
+            });
+
+            html += "</tbody></table></div>";
+            return html;
+        }
+    });
+</script>
+</body>
+</html>
