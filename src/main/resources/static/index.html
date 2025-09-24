@@ -100,21 +100,52 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        /* 🔹 Header layout */
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
+            background: #fff;
+            border-bottom: 1px solid #E5E9F0;
+        }
+        .header-left img {
+            height: 120px;   /* 🔹 Bigger size */
+            max-height: 140px;
+            object-fit: contain;
+        }
+        .header-right {
+            text-align: right;
+        }
+        .filters {
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
 <header>
-    <div class="filters">
-        <strong style="font-size: 18px;">Application Status Report of Press Sewa Portal</strong>
-        <div class="action-row">
-            <select id="rangeSelect">
-                <option value="">-- Select --</option>
-                <option value="2025-09-08|2025-09-18">08-09-2025 to 18-09-2025</option>
-            </select>
-            <button id="btnApply">Apply</button>
-            <button id="btnExcel" style="display:none;">Excel</button>
+    <div class="header-container">
+        <!-- Left side logo -->
+        <div class="header-left">
+            <img src="images/prgi-logo.png" alt="PRGI Logo">
         </div>
-        <span id="info" class="info"></span>
+
+        <!-- Right side filters -->
+        <div class="header-right">
+            <div class="filters">
+                <strong style="font-size: 18px;">Application Status Report of Press Sewa Portal</strong>
+                <div class="action-row">
+                    <select id="rangeSelect">
+                        <option value="">-- Select --</option>
+                        <option value="2025-09-08|2025-09-18">08-09-2025 to 18-09-2025</option>
+                    </select>
+                    <button id="btnApply">Apply</button>
+                    <button id="btnExcel" style="display:none;">Excel</button>
+                </div>
+                <span id="info" class="info"></span>
+            </div>
+        </div>
     </div>
 </header>
 
@@ -153,7 +184,6 @@
             excelBtn.addEventListener('click', exportToExcel);
         }
 
-        // 🔹 Modal logic with body scroll lock
         closeBtn.onclick = () => closeModal();
         window.onclick = (e) => { if (e.target === modal) closeModal(); };
 
@@ -177,7 +207,7 @@
             document.getElementById("modalBody").innerHTML =
                 "<div class='spinner-container'><div class='spinner'></div></div>";
             modal.style.display = "block";
-            document.body.style.overflow = "hidden";  // ✅ disable background scroll
+            document.body.style.overflow = "hidden";
 
             fetch(url)
                 .then(r => r.json())
@@ -193,7 +223,7 @@
 
         function closeModal() {
             modal.style.display = "none";
-            document.body.style.overflow = ""; // ✅ re-enable background scroll
+            document.body.style.overflow = "";
         }
 
         function buildTable(data) {
