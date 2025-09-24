@@ -27,7 +27,7 @@ const StatusOrder = [
 
 const ModuleOrder = Object.keys(ModuleLabels);
 
-// 🔹 Hardcoded defaults
+// 🔹 Default all "-"
 const DefaultSummary = {};
 ModuleOrder.forEach(m => {
   DefaultSummary[ModuleLabels[m]] = {};
@@ -39,7 +39,7 @@ ModuleOrder.forEach(m => {
 // 🔹 Current summary
 let CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
-// Build modules and cards
+// Build modules/cards
 function buildShell() {
   const container = document.getElementById("modules");
   container.innerHTML = "";
@@ -63,27 +63,21 @@ function buildShell() {
       card.id = `card-${id}`;
       card.innerHTML = `
         <div class="status">${StatusLabels[s]}</div>
-        <div class="count" id="count-${id}">${DefaultSummary[ModuleLabels[m]][StatusLabels[s]]}</div>
+        <div class="count" id="count-${id}">${CurrentSummary[ModuleLabels[m]][StatusLabels[s]]}</div>
       `;
       grid.appendChild(card);
     });
   });
 }
 
-// Update card value
+// Update card
 function updateCardValue(moduleName, label, newValue) {
-  const modules = document.querySelectorAll(".module");
-  modules.forEach(module => {
-    const h2 = module.querySelector("h2");
-    if (h2 && h2.textContent.includes(moduleName)) {
-      const cards = module.querySelectorAll(".card");
-      cards.forEach(card => {
-        const status = card.querySelector(".status");
-        const count = card.querySelector(".count");
-        if (status && status.textContent.trim() === label && count) {
-          count.textContent = newValue;
-        }
-      });
+  const cards = document.querySelectorAll(".card");
+  cards.forEach(card => {
+    const status = card.querySelector(".status");
+    const count = card.querySelector(".count");
+    if (status && status.textContent.trim() === label && count && card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())) {
+      count.textContent = newValue ?? "-";
     }
   });
 }
@@ -92,89 +86,113 @@ function updateCardValue(moduleName, label, newValue) {
 function loadSummary() {
   const rangeSelect = document.getElementById("rangeSelect").value;
   if (!rangeSelect) {
-    // Reset values to "-"
     CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
     buildShell();
     return Promise.resolve();
   }
 
   return fetch("/api/applications/summary?range=" + encodeURIComponent(rangeSelect))
-      .then(r => r.json())
-      .then(summary => {
-        if (summary["New Registration"]) {
-          const newReg = summary["New Registration"];
-          updateCardValue("New Registration", StatusLabels.NEW_APPLICATION, newReg[StatusLabels.NEW_APPLICATION]);
-          updateCardValue("New Registration", StatusLabels.DEFICIENT_AWAITING_PUBLISHER, newReg[StatusLabels.DEFICIENT_AWAITING_PUBLISHER]);
+    .then(r => r.json())
+    .then(summary => {
+      // reset to "-"
+      CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
+
+      // merge API data
+      ModuleOrder.forEach(mKey => {
+        const moduleName = ModuleLabels[mKey];
+        if (summary[moduleName]) {
+          StatusOrder.forEach(s => {
+            const label = StatusLabels[s];
+            CurrentSummary[moduleName][label] = summary[moduleName][label] ?? "-";
+          });
         }
-        CurrentSummary = summary;
-        enableTileClicks(); // ✅ enable clicks only after data loads
-      })
-      .catch(err => console.error("summary error:", err));
+      });
+
+      // update UI
+      ModuleOrder.forEach(mKey => {
+        const moduleName = ModuleLabels[mKey];
+        StatusOrder.forEach(s => {
+          updateCardValue(moduleName, StatusLabels[s], CurrentSummary[moduleName][StatusLabels[s]]);
+        });
+      });
+
+      enableTileClicks();
+    })
+    .catch(err => {
+      console.error("summary error:", err);
+      CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
+      buildShell();
+    });
 }
 
-// Enable tile clicks only if data is loaded
+// Enable popup clicks (only 2 tiles)
 function enableTileClicks() {
-  const rangeSelect = document.getElementById("rangeSelect").value;
-  if (!rangeSelect) return; // No clicks if not selected
-
   const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
   if (newAppCard) {
-    newAppCard.onclick = () => {
-      fetchAndShow("/api/new-registration/new-applications", "New Applications");
-    };
+    newAppCard.onclick = () => fetchAndShow("/api/new-registration/new-applications", "New Applications");
   }
 
   const deficientCard = document.getElementById("card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER");
   if (deficientCard) {
-    deficientCard.onclick = () => {
-      fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
-    };
+    deficientCard.onclick = () => fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
   }
 }
 
-// Fetch + show popup
+// Popup fetch
 function fetchAndShow(url, title) {
   const modal = document.getElementById("dataModal");
   document.getElementById("modalTitle").textContent = title;
   document.getElementById("modalBody").innerHTML =
-      "<div class='spinner-container'><div class='spinner'></div></div>";
+    "<div class='spinner-container'><div class='spinner'></div></div>";
   modal.style.display = "block";
   document.body.style.overflow = "hidden";
 
   fetch(url)
-      .then(r => r.json())
-      .then(data => {
-        document.getElementById("modalBody").innerHTML = buildTable(data);
-      })
-      .catch(err => {
-        console.error("Error:", err);
-        document.getElementById("modalBody").innerHTML =
-            "<p style='color:red; text-align:center;'>Failed to load data.</p>";
-      });
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById("modalBody").innerHTML = buildTable(data);
+      const modalExcelBtn = document.getElementById("modalExcelBtn");
+      if (modalExcelBtn) {
+        modalExcelBtn.style.display = "inline-block";
+        modalExcelBtn.onclick = () => exportModalTableToExcel(title);
+      }
+    })
+    .catch(err => {
+      console.error("Error:", err);
+      document.getElementById("modalBody").innerHTML =
+        "<p style='color:red; text-align:center;'>Failed to load data.</p>";
+    });
 }
 
+// Build table
 function buildTable(data) {
   if (!data || data.length === 0) return "<p>No records found.</p>";
-
   let cols = Object.keys(data[0]);
-  let html = "<div class='table-wrapper'><table><thead><tr>";
+  let html = "<div class='table-wrapper'><table id='modalTable'><thead><tr>";
   cols.forEach(c => (html += `<th>${c}</th>`));
   html += "</tr></thead><tbody>";
-
   data.forEach(row => {
     html += "<tr>";
     cols.forEach(c => (html += `<td>${row[c] ?? ""}</td>`));
     html += "</tr>";
   });
-
   html += "</tbody></table></div>";
   return html;
 }
 
-// Excel export
+// Export modal table
+function exportModalTableToExcel(title) {
+  const table = document.getElementById("modalTable");
+  if (!table) return;
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.table_to_sheet(table);
+  XLSX.utils.book_append_sheet(wb, ws, "Data");
+  XLSX.writeFile(wb, `${title.replace(/\s+/g, "_")}.xlsx`);
+}
+
+// Export summary
 function exportToExcel() {
   let wb = XLSX.utils.book_new();
-
   let header = [
     "S.No.",
     "Nature of Application",
@@ -185,14 +203,11 @@ function exportToExcel() {
     StatusLabels.APPLICATION_REJECTED,
     StatusLabels.REGISTRATION_GRANTED
   ];
-
   let rows = [];
   let serial = 1;
-
   ModuleOrder.forEach(mKey => {
     const moduleName = ModuleLabels[mKey];
     const summary = CurrentSummary[moduleName];
-
     rows.push({
       "S.No.": serial++,
       "Nature of Application": moduleName,
@@ -204,49 +219,35 @@ function exportToExcel() {
       [StatusLabels.REGISTRATION_GRANTED]: summary[StatusLabels.REGISTRATION_GRANTED]
     });
   });
-
   let totalRow = { "S.No.": "", "Nature of Application": "Total" };
   header.slice(2).forEach(label => {
-    let sum = 0;
-    let numeric = true;
+    let sum = 0, numeric = true;
     ModuleOrder.forEach(mKey => {
       let val = CurrentSummary[ModuleLabels[mKey]][label];
-      if (!isNaN(val)) {
-        sum += Number(val);
-      } else {
-        numeric = false;
-      }
+      if (!isNaN(val)) sum += Number(val);
+      else numeric = false;
     });
     totalRow[label] = numeric ? sum : "";
   });
   rows.push(totalRow);
-
   let ws = XLSX.utils.json_to_sheet(rows, { header });
   XLSX.utils.book_append_sheet(wb, ws, "Application Summary");
-
   XLSX.writeFile(wb, "Application_Summary.xlsx");
 }
 
 // Init
 document.addEventListener("DOMContentLoaded", () => {
   buildShell();
-
   const applyBtn = document.getElementById("btnApply");
   const excelBtn = document.getElementById("btnExcel");
-
   if (applyBtn) {
     applyBtn.addEventListener("click", () => {
       loadSummary().then(() => {
         const rangeSelect = document.getElementById("rangeSelect").value;
-        if (rangeSelect) {
-          excelBtn.style.display = "inline-block";
-        } else {
-          excelBtn.style.display = "none";
-        }
+        excelBtn.style.display = rangeSelect ? "inline-block" : "none";
       });
     });
   }
-
   if (excelBtn) {
     excelBtn.addEventListener("click", exportToExcel);
   }
