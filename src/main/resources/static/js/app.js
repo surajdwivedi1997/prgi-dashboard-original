@@ -28,58 +28,15 @@ const StatusOrder = [
 const ModuleOrder = Object.keys(ModuleLabels);
 
 // 🔹 Hardcoded defaults
-const DefaultSummary = {
-  "New Registration": {
-    [StatusLabels.NEW_APPLICATION]: "-",
-    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "42",
-    [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "-",
-    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "235",
-    [StatusLabels.APPLICATION_REJECTED]: "24+61 (Partial Reject)",
-    [StatusLabels.REGISTRATION_GRANTED]: "270"
-  },
-  "New Edition": {
-    [StatusLabels.NEW_APPLICATION]: "68",
-    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "7",
-    [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "1",
-    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "61",
-    [StatusLabels.APPLICATION_REJECTED]: "0+2 (Partial Reject)",
-    [StatusLabels.REGISTRATION_GRANTED]: "12"
-  },
-  "Revised Registration": {
-    [StatusLabels.NEW_APPLICATION]: "50",
-    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "34",
-    [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "17",
-    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "67",
-    [StatusLabels.APPLICATION_REJECTED]: "1+14 (Partial Reject)",
-    [StatusLabels.REGISTRATION_GRANTED]: "103"
-  },
-  "Ownership Transfer": {
-    [StatusLabels.NEW_APPLICATION]: "25",
-    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "5",
-    [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "13",
-    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "21",
-    [StatusLabels.APPLICATION_REJECTED]: "0",
-    [StatusLabels.REGISTRATION_GRANTED]: "0"
-  },
-  "Discontinuation of Publication": {
-    [StatusLabels.NEW_APPLICATION]: "0",
-    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "0",
-    [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "0",
-    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "3",
-    [StatusLabels.APPLICATION_REJECTED]: "0",
-    [StatusLabels.REGISTRATION_GRANTED]: "0"
-  },
-  "Newsprint Declaration Authentication": {
-    [StatusLabels.NEW_APPLICATION]: "0",
-    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "9",
-    [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "1",
-    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "0",
-    [StatusLabels.APPLICATION_REJECTED]: "0",
-    [StatusLabels.REGISTRATION_GRANTED]: "5"
-  }
-};
+const DefaultSummary = {};
+ModuleOrder.forEach(m => {
+  DefaultSummary[ModuleLabels[m]] = {};
+  StatusOrder.forEach(s => {
+    DefaultSummary[ModuleLabels[m]][StatusLabels[s]] = "-";
+  });
+});
 
-// 🔹 Current summary (updated after API call)
+// 🔹 Current summary
 let CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
 // Build modules and cards
@@ -113,7 +70,7 @@ function buildShell() {
   });
 }
 
-// Update card value helper
+// Update card value
 function updateCardValue(moduleName, label, newValue) {
   const modules = document.querySelectorAll(".module");
   modules.forEach(module => {
@@ -131,9 +88,17 @@ function updateCardValue(moduleName, label, newValue) {
   });
 }
 
-// Load summary (only 1st & 3rd tiles of New Registration from DB)
+// Load summary
 function loadSummary() {
-  return fetch("/api/applications/summary")
+  const rangeSelect = document.getElementById("rangeSelect").value;
+  if (!rangeSelect) {
+    // Reset values to "-"
+    CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
+    buildShell();
+    return Promise.resolve();
+  }
+
+  return fetch("/api/applications/summary?range=" + encodeURIComponent(rangeSelect))
       .then(r => r.json())
       .then(summary => {
         if (summary["New Registration"]) {
@@ -141,17 +106,75 @@ function loadSummary() {
           updateCardValue("New Registration", StatusLabels.NEW_APPLICATION, newReg[StatusLabels.NEW_APPLICATION]);
           updateCardValue("New Registration", StatusLabels.DEFICIENT_AWAITING_PUBLISHER, newReg[StatusLabels.DEFICIENT_AWAITING_PUBLISHER]);
         }
-        // Save the latest summary globally
         CurrentSummary = summary;
+        enableTileClicks(); // ✅ enable clicks only after data loads
       })
       .catch(err => console.error("summary error:", err));
 }
 
-// 🔹 Excel export
+// Enable tile clicks only if data is loaded
+function enableTileClicks() {
+  const rangeSelect = document.getElementById("rangeSelect").value;
+  if (!rangeSelect) return; // No clicks if not selected
+
+  const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
+  if (newAppCard) {
+    newAppCard.onclick = () => {
+      fetchAndShow("/api/new-registration/new-applications", "New Applications");
+    };
+  }
+
+  const deficientCard = document.getElementById("card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER");
+  if (deficientCard) {
+    deficientCard.onclick = () => {
+      fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
+    };
+  }
+}
+
+// Fetch + show popup
+function fetchAndShow(url, title) {
+  const modal = document.getElementById("dataModal");
+  document.getElementById("modalTitle").textContent = title;
+  document.getElementById("modalBody").innerHTML =
+      "<div class='spinner-container'><div class='spinner'></div></div>";
+  modal.style.display = "block";
+  document.body.style.overflow = "hidden";
+
+  fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        document.getElementById("modalBody").innerHTML = buildTable(data);
+      })
+      .catch(err => {
+        console.error("Error:", err);
+        document.getElementById("modalBody").innerHTML =
+            "<p style='color:red; text-align:center;'>Failed to load data.</p>";
+      });
+}
+
+function buildTable(data) {
+  if (!data || data.length === 0) return "<p>No records found.</p>";
+
+  let cols = Object.keys(data[0]);
+  let html = "<div class='table-wrapper'><table><thead><tr>";
+  cols.forEach(c => (html += `<th>${c}</th>`));
+  html += "</tr></thead><tbody>";
+
+  data.forEach(row => {
+    html += "<tr>";
+    cols.forEach(c => (html += `<td>${row[c] ?? ""}</td>`));
+    html += "</tr>";
+  });
+
+  html += "</tbody></table></div>";
+  return html;
+}
+
+// Excel export
 function exportToExcel() {
   let wb = XLSX.utils.book_new();
 
-  // Define header
   let header = [
     "S.No.",
     "Nature of Application",
@@ -182,7 +205,6 @@ function exportToExcel() {
     });
   });
 
-  // Total row
   let totalRow = { "S.No.": "", "Nature of Application": "Total" };
   header.slice(2).forEach(label => {
     let sum = 0;
@@ -209,28 +231,18 @@ function exportToExcel() {
 document.addEventListener("DOMContentLoaded", () => {
   buildShell();
 
-  // Collapse/Expand for mobile
-  const modules = document.querySelectorAll(".module");
-  modules.forEach(module => {
-    const header = module.querySelector("h2");
-    const toggleIcon = module.querySelector(".toggle-icon");
-    if (header) {
-      header.addEventListener("click", () => {
-        if (window.innerWidth < 768) {
-          module.classList.toggle("open");
-          if (toggleIcon) toggleIcon.classList.toggle("open");
-        }
-      });
-    }
-  });
-
   const applyBtn = document.getElementById("btnApply");
   const excelBtn = document.getElementById("btnExcel");
 
   if (applyBtn) {
     applyBtn.addEventListener("click", () => {
       loadSummary().then(() => {
-        excelBtn.style.display = "inline-block";
+        const rangeSelect = document.getElementById("rangeSelect").value;
+        if (rangeSelect) {
+          excelBtn.style.display = "inline-block";
+        } else {
+          excelBtn.style.display = "none";
+        }
       });
     });
   }
