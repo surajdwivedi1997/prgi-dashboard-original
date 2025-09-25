@@ -10,7 +10,7 @@ const ModuleLabels = {
 const StatusLabels = {
   NEW_APPLICATION: "New Applications (Response awaited from Specified Authority within 60 days window)",
   APPLICATION_RECEIVED_FROM_SA: "Applications received from Specified Authority with/without comments after 60 days",
-  DEFICIENT_AWAITING_PUBLISHER: "Deficient – Applications Response awaited from publishers", // ✅ en dash
+  DEFICIENT_AWAITING_PUBLISHER: "Deficient – Applications Response awaited from publishers",
   UNDER_PROCESS_AT_PRGI: "Under Process at PRGI (Above ASO Level)",
   APPLICATION_REJECTED: "Applications Rejected",
   REGISTRATION_GRANTED: "Registration Granted"
@@ -29,60 +29,62 @@ const ModuleOrder = Object.keys(ModuleLabels);
 
 // 🔹 Default all "-"
 const DefaultSummary = {};
-ModuleOrder.forEach(m => {
-  DefaultSummary[ModuleLabels[m]] = {};
+ModuleOrder.forEach(mKey => {
+  DefaultSummary[ModuleLabels[mKey]] = {};
   StatusOrder.forEach(s => {
-    DefaultSummary[ModuleLabels[m]][StatusLabels[s]] = "-";
+    DefaultSummary[ModuleLabels[mKey]][StatusLabels[s]] = "-";
   });
 });
 
 // 🔹 Current summary
 let CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
-// Build modules/cards
+/* --------------------------
+   Build modules/cards
+-------------------------- */
 function buildShell() {
   const container = document.getElementById("modules");
   container.innerHTML = "";
-  ModuleOrder.forEach(m => {
+  ModuleOrder.forEach(mKey => {
     const section = document.createElement("section");
-    section.className = `module ${m}`;
+    section.className = `module ${mKey}`;
     section.innerHTML = `
       <h2>
-        <span>${ModuleLabels[m]}</span>
+        <span>${ModuleLabels[mKey]}</span>
         <span class="toggle-icon">+</span>
       </h2>
-      <div class="grid" id="grid-${m}"></div>
+      <div class="grid" id="grid-${mKey}"></div>
     `;
     container.appendChild(section);
 
     const grid = section.querySelector(".grid");
     StatusOrder.forEach(s => {
-      const id = `${m}_${s}`;
+      const id = `${mKey}_${s}`;
       const card = document.createElement("div");
       card.className = `card ${s}`;
       card.id = `card-${id}`;
       card.innerHTML = `
         <div class="status">${StatusLabels[s]}</div>
-        <div class="count" id="count-${id}">${CurrentSummary[ModuleLabels[m]][StatusLabels[s]]}</div>
+        <div class="count" id="count-${id}">${CurrentSummary[ModuleLabels[mKey]][StatusLabels[s]]}</div>
       `;
       grid.appendChild(card);
     });
   });
 }
 
-// Update card
-function updateCardValue(moduleName, label, newValue) {
-  const cards = document.querySelectorAll(".card");
-  cards.forEach(card => {
-    const status = card.querySelector(".status");
-    const count = card.querySelector(".count");
-    if (status && status.textContent.trim() === label && count && card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())) {
-      count.textContent = newValue ?? "-";
-    }
-  });
+/* --------------------------
+   Update card (fixed with moduleKey)
+-------------------------- */
+function updateCardValue(moduleKey, statusKey, newValue) {
+  const count = document.getElementById(`count-${moduleKey}_${statusKey}`);
+  if (count) {
+    count.textContent = newValue ?? "-";
+  }
 }
 
-// Load summary (with normalization fix)
+/* --------------------------
+   Load summary
+-------------------------- */
 function loadSummary() {
   const rangeSelect = document.getElementById("rangeSelect").value;
   if (!rangeSelect) {
@@ -91,7 +93,7 @@ function loadSummary() {
     return Promise.resolve();
   }
 
-  return fetch("/api/applications/summary?range=" + encodeURIComponent(rangeSelect))
+  return fetch("/api/applications/summary?startDate=2025-09-08&endDate=2025-09-18")
     .then(r => r.json())
     .then(summary => {
       console.log("Full API Response:", summary);
@@ -112,29 +114,19 @@ function loadSummary() {
             const label = StatusLabels[s];
             let apiValue = "-";
 
-            // exact match
+            // exact or normalized match
             if (apiObj[label] !== undefined) {
               apiValue = apiObj[label];
             } else {
-              // normalized match
               const apiKeys = Object.keys(apiObj);
               const foundKey = apiKeys.find(k => normalize(k) === normalize(label));
-              if (foundKey) {
-                apiValue = apiObj[foundKey];
-              }
+              if (foundKey) apiValue = apiObj[foundKey];
             }
 
             CurrentSummary[moduleName][label] = apiValue;
+            updateCardValue(mKey, s, apiValue);
           });
         }
-      });
-
-      // update UI
-      ModuleOrder.forEach(mKey => {
-        const moduleName = ModuleLabels[mKey];
-        StatusOrder.forEach(s => {
-          updateCardValue(moduleName, StatusLabels[s], CurrentSummary[moduleName][StatusLabels[s]]);
-        });
       });
 
       enableTileClicks();
@@ -146,7 +138,9 @@ function loadSummary() {
     });
 }
 
-// Enable popup clicks
+/* --------------------------
+   Enable popup clicks
+-------------------------- */
 function enableTileClicks() {
   const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
   if (newAppCard) {
@@ -159,7 +153,9 @@ function enableTileClicks() {
   }
 }
 
-// Popup fetch
+/* --------------------------
+   Popup fetch + build table
+-------------------------- */
 function fetchAndShow(url, title) {
   const modal = document.getElementById("dataModal");
   document.getElementById("modalTitle").textContent = title;
@@ -185,7 +181,6 @@ function fetchAndShow(url, title) {
     });
 }
 
-// Build table
 function buildTable(data) {
   if (!data || data.length === 0) return "<p>No records found.</p>";
   let cols = Object.keys(data[0]);
@@ -201,7 +196,9 @@ function buildTable(data) {
   return html;
 }
 
-// Export modal table
+/* --------------------------
+   Export functions
+-------------------------- */
 function exportModalTableToExcel(title) {
   const table = document.getElementById("modalTable");
   if (!table) return;
@@ -211,7 +208,6 @@ function exportModalTableToExcel(title) {
   XLSX.writeFile(wb, `${title.replace(/\s+/g, "_")}.xlsx`);
 }
 
-// Export summary
 function exportToExcel() {
   let wb = XLSX.utils.book_new();
   let header = [
@@ -256,7 +252,9 @@ function exportToExcel() {
   XLSX.writeFile(wb, "Application_Summary.xlsx");
 }
 
-// Init
+/* --------------------------
+   Init
+-------------------------- */
 document.addEventListener("DOMContentLoaded", () => {
   buildShell();
   const applyBtn = document.getElementById("btnApply");
