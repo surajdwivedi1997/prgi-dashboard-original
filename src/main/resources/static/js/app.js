@@ -27,6 +27,11 @@ const StatusOrder = [
 
 const ModuleOrder = Object.keys(ModuleLabels);
 
+// ✅ Base URL for backend API
+// Change this line only when switching environment
+// const BASE_URL = "http://localhost:8080";
+const BASE_URL = "https://tramway.proxy.rlwy.net:20844";
+
 // 🔹 Default all "-"
 const DefaultSummary = {};
 ModuleOrder.forEach(m => {
@@ -91,7 +96,7 @@ function loadSummary() {
     return Promise.resolve();
   }
 
-  return fetch("/api/applications/summary?range=" + encodeURIComponent(rangeSelect))
+  return fetch(`${BASE_URL}/api/applications/summary?range=${encodeURIComponent(rangeSelect)}`)
     .then(r => r.json())
     .then(summary => {
       // reset to "-"
@@ -129,12 +134,12 @@ function loadSummary() {
 function enableTileClicks() {
   const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
   if (newAppCard) {
-    newAppCard.onclick = () => fetchAndShow("/api/new-registration/new-applications", "New Applications");
+    newAppCard.onclick = () => fetchAndShow(`${BASE_URL}/api/new-registration/new-applications`, "New Applications");
   }
 
   const deficientCard = document.getElementById("card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER");
   if (deficientCard) {
-    deficientCard.onclick = () => fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
+    deficientCard.onclick = () => fetchAndShow(`${BASE_URL}/api/new-registration/deficient`, "Deficient Applications");
   }
 }
 
