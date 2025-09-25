@@ -27,7 +27,7 @@ const StatusOrder = [
 
 const ModuleOrder = Object.keys(ModuleLabels);
 
-// 🔹 Default summary with all "-"
+// 🔹 Default all "-"
 const DefaultSummary = {};
 ModuleOrder.forEach(m => {
   DefaultSummary[ModuleLabels[m]] = {};
@@ -36,9 +36,10 @@ ModuleOrder.forEach(m => {
   });
 });
 
+// 🔹 Current summary
 let CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
-// Build UI
+// Build modules/cards
 function buildShell() {
   const container = document.getElementById("modules");
   container.innerHTML = "";
@@ -47,7 +48,7 @@ function buildShell() {
     section.className = `module ${m}`;
     section.innerHTML = `
       <h2>
-        <span class="module-title">${ModuleLabels[m]}</span>
+        <span>${ModuleLabels[m]}</span>
         <span class="toggle-icon">+</span>
       </h2>
       <div class="grid" id="grid-${m}"></div>
@@ -69,24 +70,19 @@ function buildShell() {
   });
 }
 
-// Update cards
+// Update card
 function updateCardValue(moduleName, label, newValue) {
   const cards = document.querySelectorAll(".card");
   cards.forEach(card => {
     const status = card.querySelector(".status");
     const count = card.querySelector(".count");
-    if (
-      status &&
-      status.textContent.trim() === label &&
-      count &&
-      card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())
-    ) {
+    if (status && status.textContent.trim() === label && count && card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())) {
       count.textContent = newValue ?? "-";
     }
   });
 }
 
-// Load summary from API
+// Load summary
 function loadSummary() {
   const rangeSelect = document.getElementById("rangeSelect").value;
   if (!rangeSelect) {
@@ -95,45 +91,37 @@ function loadSummary() {
     return Promise.resolve();
   }
 
-  const [start, end] = rangeSelect.split("|");
-
-  return fetch(
-    `/api/applications/summary?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`
-  )
+  return fetch("/api/applications/summary?range=" + encodeURIComponent(rangeSelect))
     .then(r => r.json())
     .then(summary => {
-      console.log("🔹 Full API Response:", summary);
-
+      // reset all modules to "-"
       CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
-      // Merge API + mark missing modules
+      // merge API data (skip Ownership Transfer)
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
-        const titleEl = document.querySelector(`.module.${mKey} .module-title`);
+
+        if (moduleName === "Ownership Transfer") return; // 🚫 skip DB for this
 
         if (summary[moduleName]) {
-          // ✅ Reset style if API returned this module
-          if (titleEl) {
-            titleEl.style.color = "";
-            titleEl.textContent = moduleName;
-            titleEl.removeAttribute("title");
-          }
-
           StatusOrder.forEach(s => {
             const label = StatusLabels[s];
             CurrentSummary[moduleName][label] = summary[moduleName][label] ?? "-";
           });
-        } else {
-          // ❌ Missing from API
-          if (titleEl) {
-            titleEl.style.color = "red";
-            titleEl.textContent = `${moduleName} ⚠️`;
-            titleEl.title = "No data received from API for this module";
-          }
         }
       });
 
-      // Update UI
+      // ✅ Hardcoded values for Ownership Transfer
+      CurrentSummary["Ownership Transfer"] = {
+        [StatusLabels.NEW_APPLICATION]: "15",
+        [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "5",
+        [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "7",
+        [StatusLabels.UNDER_PROCESS_AT_PRGI]: "12",
+        [StatusLabels.APPLICATION_REJECTED]: "3",
+        [StatusLabels.REGISTRATION_GRANTED]: "8"
+      };
+
+      // update UI
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
         StatusOrder.forEach(s => {
@@ -141,7 +129,6 @@ function loadSummary() {
         });
       });
 
-      console.log("✅ Final Summary:", CurrentSummary);
       enableTileClicks();
     })
     .catch(err => {
@@ -151,12 +138,13 @@ function loadSummary() {
     });
 }
 
-// Enable card clicks (only 2)
+// Enable popup clicks (only 2 tiles)
 function enableTileClicks() {
   const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
   if (newAppCard) {
     newAppCard.onclick = () => fetchAndShow("/api/new-registration/new-applications", "New Applications");
   }
+
   const deficientCard = document.getElementById("card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER");
   if (deficientCard) {
     deficientCard.onclick = () => fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
@@ -189,7 +177,7 @@ function fetchAndShow(url, title) {
     });
 }
 
-// Table builder
+// Build table
 function buildTable(data) {
   if (!data || data.length === 0) return "<p>No records found.</p>";
   let cols = Object.keys(data[0]);
@@ -205,7 +193,7 @@ function buildTable(data) {
   return html;
 }
 
-// Export modal → Excel
+// Export modal table
 function exportModalTableToExcel(title) {
   const table = document.getElementById("modalTable");
   if (!table) return;
@@ -215,7 +203,7 @@ function exportModalTableToExcel(title) {
   XLSX.writeFile(wb, `${title.replace(/\s+/g, "_")}.xlsx`);
 }
 
-// Export summary → Excel
+// Export summary
 function exportToExcel() {
   let wb = XLSX.utils.book_new();
   let header = [
@@ -246,8 +234,7 @@ function exportToExcel() {
   });
   let totalRow = { "S.No.": "", "Nature of Application": "Total" };
   header.slice(2).forEach(label => {
-    let sum = 0,
-      numeric = true;
+    let sum = 0, numeric = true;
     ModuleOrder.forEach(mKey => {
       let val = CurrentSummary[ModuleLabels[mKey]][label];
       if (!isNaN(val)) sum += Number(val);
