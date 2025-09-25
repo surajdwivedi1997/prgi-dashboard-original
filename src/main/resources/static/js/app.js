@@ -10,7 +10,7 @@ const ModuleLabels = {
 const StatusLabels = {
   NEW_APPLICATION: "New Applications (Response awaited from Specified Authority within 60 days window)",
   APPLICATION_RECEIVED_FROM_SA: "Applications received from Specified Authority with/without comments after 60 days",
-  DEFICIENT_AWAITING_PUBLISHER: "Deficient – Applications Response awaited from publishers",
+  DEFICIENT_AWAITING_PUBLISHER: "Deficient – Applications Response awaited from publishers", // ✅ en dash
   UNDER_PROCESS_AT_PRGI: "Under Process at PRGI (Above ASO Level)",
   APPLICATION_REJECTED: "Applications Rejected",
   REGISTRATION_GRANTED: "Registration Granted"
@@ -38,34 +38,6 @@ ModuleOrder.forEach(m => {
 
 // 🔹 Current summary
 let CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
-
-// 🔹 Normalization helper
-const normalize = str =>
-  str?.toLowerCase().replace(/[–—-]/g, "-").replace(/\s+/g, " ").trim();
-
-// 🔹 Smart lookup
-const findApiValue = (apiObj, label) => {
-  if (!apiObj) return "-";
-
-  // exact match
-  if (apiObj[label] !== undefined) return apiObj[label];
-
-  const apiKeys = Object.keys(apiObj);
-  const normLabel = normalize(label);
-
-  // normalized match
-  let foundKey = apiKeys.find(k => normalize(k) === normLabel);
-  if (foundKey) return apiObj[foundKey];
-
-  // fallback: contains
-  foundKey = apiKeys.find(
-    k =>
-      normalize(k).includes(normLabel) || normLabel.includes(normalize(k))
-  );
-  if (foundKey) return apiObj[foundKey];
-
-  return "-";
-};
 
 // Build modules/cards
 function buildShell() {
@@ -104,18 +76,13 @@ function updateCardValue(moduleName, label, newValue) {
   cards.forEach(card => {
     const status = card.querySelector(".status");
     const count = card.querySelector(".count");
-    if (
-      status &&
-      status.textContent.trim() === label &&
-      count &&
-      card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())
-    ) {
+    if (status && status.textContent.trim() === label && count && card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())) {
       count.textContent = newValue ?? "-";
     }
   });
 }
 
-// Load summary
+// Load summary (with normalization fix)
 function loadSummary() {
   const rangeSelect = document.getElementById("rangeSelect").value;
   if (!rangeSelect) {
@@ -133,6 +100,9 @@ function loadSummary() {
       // reset to "-"
       CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
+      // normalize helper
+      const normalize = str => str?.toLowerCase().replace(/\s+/g, " ").trim();
+
       // merge API data
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
@@ -140,7 +110,21 @@ function loadSummary() {
         if (apiObj) {
           StatusOrder.forEach(s => {
             const label = StatusLabels[s];
-            CurrentSummary[moduleName][label] = findApiValue(apiObj, label);
+            let apiValue = "-";
+
+            // exact match
+            if (apiObj[label] !== undefined) {
+              apiValue = apiObj[label];
+            } else {
+              // normalized match
+              const apiKeys = Object.keys(apiObj);
+              const foundKey = apiKeys.find(k => normalize(k) === normalize(label));
+              if (foundKey) {
+                apiValue = apiObj[foundKey];
+              }
+            }
+
+            CurrentSummary[moduleName][label] = apiValue;
           });
         }
       });
@@ -149,11 +133,7 @@ function loadSummary() {
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
         StatusOrder.forEach(s => {
-          updateCardValue(
-            moduleName,
-            StatusLabels[s],
-            CurrentSummary[moduleName][StatusLabels[s]]
-          );
+          updateCardValue(moduleName, StatusLabels[s], CurrentSummary[moduleName][StatusLabels[s]]);
         });
       });
 
@@ -170,14 +150,12 @@ function loadSummary() {
 function enableTileClicks() {
   const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
   if (newAppCard) {
-    newAppCard.onclick = () =>
-      fetchAndShow("/api/new-registration/new-applications", "New Applications");
+    newAppCard.onclick = () => fetchAndShow("/api/new-registration/new-applications", "New Applications");
   }
 
   const deficientCard = document.getElementById("card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER");
   if (deficientCard) {
-    deficientCard.onclick = () =>
-      fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
+    deficientCard.onclick = () => fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
   }
 }
 
@@ -264,8 +242,7 @@ function exportToExcel() {
   });
   let totalRow = { "S.No.": "", "Nature of Application": "Total" };
   header.slice(2).forEach(label => {
-    let sum = 0,
-      numeric = true;
+    let sum = 0, numeric = true;
     ModuleOrder.forEach(mKey => {
       let val = CurrentSummary[ModuleLabels[mKey]][label];
       if (!isNaN(val)) sum += Number(val);
