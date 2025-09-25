@@ -27,31 +27,31 @@ const StatusOrder = [
 
 const ModuleOrder = Object.keys(ModuleLabels);
 
-// 🔹 Hardcoded defaults (change numbers here if needed)
+// 🔹 Hardcoded defaults
 const DefaultSummary = {
   "New Registration": {
-    [StatusLabels.NEW_APPLICATION]: "10",
-    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "5",
-    [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "7",
-    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "3",
-    [StatusLabels.APPLICATION_REJECTED]: "1",
-    [StatusLabels.REGISTRATION_GRANTED]: "2"
+    [StatusLabels.NEW_APPLICATION]: "-",
+    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "42",
+    [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "-",
+    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "235",
+    [StatusLabels.APPLICATION_REJECTED]: "24+61 (Partial Reject)",
+    [StatusLabels.REGISTRATION_GRANTED]: "270"
   },
   "New Edition": {
-    [StatusLabels.NEW_APPLICATION]: "12",
-    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "6",
-    [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "4",
-    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "2",
-    [StatusLabels.APPLICATION_REJECTED]: "0",
-    [StatusLabels.REGISTRATION_GRANTED]: "1"
+    [StatusLabels.NEW_APPLICATION]: "68",
+    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "7",
+    [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "1",
+    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "61",
+    [StatusLabels.APPLICATION_REJECTED]: "0+2 (Partial Reject)",
+    [StatusLabels.REGISTRATION_GRANTED]: "12"
   },
   "Revised Registration": {
-    [StatusLabels.NEW_APPLICATION]: "8",
-    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "2",
-    [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "5",
-    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "1",
-    [StatusLabels.APPLICATION_REJECTED]: "0",
-    [StatusLabels.REGISTRATION_GRANTED]: "0"
+    [StatusLabels.NEW_APPLICATION]: "50",
+    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "34",
+    [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "17",
+    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "67",
+    [StatusLabels.APPLICATION_REJECTED]: "1+14 (Partial Reject)",
+    [StatusLabels.REGISTRATION_GRANTED]: "103"
   },
   "Ownership Transfer": {
     [StatusLabels.NEW_APPLICATION]: "25",
@@ -62,24 +62,24 @@ const DefaultSummary = {
     [StatusLabels.REGISTRATION_GRANTED]: "0"
   },
   "Discontinuation of Publication": {
-    [StatusLabels.NEW_APPLICATION]: "2",
-    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "1",
+    [StatusLabels.NEW_APPLICATION]: "0",
+    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "0",
     [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "0",
-    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "0",
+    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "3",
     [StatusLabels.APPLICATION_REJECTED]: "0",
     [StatusLabels.REGISTRATION_GRANTED]: "0"
   },
   "Newsprint Declaration Authentication": {
-    [StatusLabels.NEW_APPLICATION]: "4",
-    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "2",
+    [StatusLabels.NEW_APPLICATION]: "0",
+    [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "9",
     [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "1",
-    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "1",
+    [StatusLabels.UNDER_PROCESS_AT_PRGI]: "0",
     [StatusLabels.APPLICATION_REJECTED]: "0",
-    [StatusLabels.REGISTRATION_GRANTED]: "0"
+    [StatusLabels.REGISTRATION_GRANTED]: "5"
   }
 };
 
-// 🔹 Current summary (clone defaults)
+// 🔹 Current summary
 let CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
 // Build modules/cards
@@ -120,12 +120,12 @@ function updateCardValue(moduleName, label, newValue) {
     const status = card.querySelector(".status");
     const count = card.querySelector(".count");
     if (status && status.textContent.trim() === label && count && card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())) {
-      count.textContent = newValue ?? CurrentSummary[moduleName][label];
+      count.textContent = newValue ?? "-";
     }
   });
 }
 
-// Load summary (merge API with defaults)
+// Load summary
 function loadSummary() {
   const rangeSelect = document.getElementById("rangeSelect").value;
   if (!rangeSelect) {
@@ -138,20 +138,36 @@ function loadSummary() {
     .then(r => r.json())
     .then(summary => {
       console.log("Full API Response:", summary);
+      console.log("Ownership Transfer from API:", summary["Ownership Transfer"]);
 
-      // start fresh with defaults
+      // reset to defaults
       CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
-      // merge API values only where present
+      // normalize helper
+      const normalize = str => str?.toLowerCase().replace(/\s+/g, " ").trim();
+
+      // merge API data
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
         const apiObj = summary[moduleName];
         if (apiObj) {
           StatusOrder.forEach(s => {
             const label = StatusLabels[s];
+            let apiValue = CurrentSummary[moduleName][label]; // keep hardcoded if missing
+
+            // exact match
             if (apiObj[label] !== undefined) {
-              CurrentSummary[moduleName][label] = apiObj[label];
+              apiValue = apiObj[label];
+            } else {
+              // normalized match
+              const apiKeys = Object.keys(apiObj);
+              const foundKey = apiKeys.find(k => normalize(k) === normalize(label));
+              if (foundKey) {
+                apiValue = apiObj[foundKey];
+              }
             }
+
+            CurrentSummary[moduleName][label] = apiValue;
           });
         }
       });
@@ -267,6 +283,17 @@ function exportToExcel() {
       [StatusLabels.REGISTRATION_GRANTED]: summary[StatusLabels.REGISTRATION_GRANTED]
     });
   });
+  let totalRow = { "S.No.": "", "Nature of Application": "Total" };
+  header.slice(2).forEach(label => {
+    let sum = 0, numeric = true;
+    ModuleOrder.forEach(mKey => {
+      let val = CurrentSummary[ModuleLabels[mKey]][label];
+      if (!isNaN(val)) sum += Number(val);
+      else numeric = false;
+    });
+    totalRow[label] = numeric ? sum : "";
+  });
+  rows.push(totalRow);
   let ws = XLSX.utils.json_to_sheet(rows, { header });
   XLSX.utils.book_append_sheet(wb, ws, "Application Summary");
   XLSX.writeFile(wb, "Application_Summary.xlsx");
