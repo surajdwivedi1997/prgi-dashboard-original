@@ -76,7 +76,12 @@ function updateCardValue(moduleName, label, newValue) {
   cards.forEach(card => {
     const status = card.querySelector(".status");
     const count = card.querySelector(".count");
-    if (status && status.textContent.trim() === label && count && card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())) {
+    if (
+      status &&
+      status.textContent.trim() === label &&
+      count &&
+      card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())
+    ) {
       count.textContent = newValue ?? "-";
     }
   });
@@ -101,7 +106,8 @@ function loadSummary() {
       CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
       // normalize helper
-      const normalize = str => str?.toLowerCase().replace(/\s+/g, " ").trim();
+      const normalize = str =>
+        str?.toLowerCase().replace(/–/g, "-").replace(/\s+/g, " ").trim();
 
       // merge API data
       ModuleOrder.forEach(mKey => {
@@ -118,7 +124,9 @@ function loadSummary() {
             } else {
               // normalized match
               const apiKeys = Object.keys(apiObj);
-              const foundKey = apiKeys.find(k => normalize(k) === normalize(label));
+              const foundKey = apiKeys.find(
+                k => normalize(k) === normalize(label)
+              );
               if (foundKey) {
                 apiValue = apiObj[foundKey];
               }
@@ -133,7 +141,11 @@ function loadSummary() {
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
         StatusOrder.forEach(s => {
-          updateCardValue(moduleName, StatusLabels[s], CurrentSummary[moduleName][StatusLabels[s]]);
+          updateCardValue(
+            moduleName,
+            StatusLabels[s],
+            CurrentSummary[moduleName][StatusLabels[s]]
+          );
         });
       });
 
@@ -148,14 +160,23 @@ function loadSummary() {
 
 // Enable popup clicks
 function enableTileClicks() {
-  const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
+  const newAppCard = document.getElementById(
+    "card-NEW_REGISTRATION_NEW_APPLICATION"
+  );
   if (newAppCard) {
-    newAppCard.onclick = () => fetchAndShow("/api/new-registration/new-applications", "New Applications");
+    newAppCard.onclick = () =>
+      fetchAndShow(
+        "/api/new-registration/new-applications",
+        "New Applications"
+      );
   }
 
-  const deficientCard = document.getElementById("card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER");
+  const deficientCard = document.getElementById(
+    "card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER"
+  );
   if (deficientCard) {
-    deficientCard.onclick = () => fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
+    deficientCard.onclick = () =>
+      fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
   }
 }
 
@@ -233,16 +254,22 @@ function exportToExcel() {
       "S.No.": serial++,
       "Nature of Application": moduleName,
       [StatusLabels.NEW_APPLICATION]: summary[StatusLabels.NEW_APPLICATION],
-      [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: summary[StatusLabels.APPLICATION_RECEIVED_FROM_SA],
-      [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: summary[StatusLabels.DEFICIENT_AWAITING_PUBLISHER],
-      [StatusLabels.UNDER_PROCESS_AT_PRGI]: summary[StatusLabels.UNDER_PROCESS_AT_PRGI],
-      [StatusLabels.APPLICATION_REJECTED]: summary[StatusLabels.APPLICATION_REJECTED],
-      [StatusLabels.REGISTRATION_GRANTED]: summary[StatusLabels.REGISTRATION_GRANTED]
+      [StatusLabels.APPLICATION_RECEIVED_FROM_SA]:
+        summary[StatusLabels.APPLICATION_RECEIVED_FROM_SA],
+      [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]:
+        summary[StatusLabels.DEFICIENT_AWAITING_PUBLISHER],
+      [StatusLabels.UNDER_PROCESS_AT_PRGI]:
+        summary[StatusLabels.UNDER_PROCESS_AT_PRGI],
+      [StatusLabels.APPLICATION_REJECTED]:
+        summary[StatusLabels.APPLICATION_REJECTED],
+      [StatusLabels.REGISTRATION_GRANTED]:
+        summary[StatusLabels.REGISTRATION_GRANTED]
     });
   });
   let totalRow = { "S.No.": "", "Nature of Application": "Total" };
   header.slice(2).forEach(label => {
-    let sum = 0, numeric = true;
+    let sum = 0,
+      numeric = true;
     ModuleOrder.forEach(mKey => {
       let val = CurrentSummary[ModuleLabels[mKey]][label];
       if (!isNaN(val)) sum += Number(val);
