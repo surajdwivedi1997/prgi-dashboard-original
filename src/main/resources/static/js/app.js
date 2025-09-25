@@ -94,24 +94,20 @@ function loadSummary() {
   return fetch("/api/applications/summary?range=" + encodeURIComponent(rangeSelect))
     .then(r => r.json())
     .then(summary => {
-      console.log("Full API Response:", summary);
-      console.log("Ownership Transfer from API:", summary["Ownership Transfer"]);
-
       // reset to "-"
       CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
       // merge API data
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
-        if (summary[moduleName]) {
-          const apiObj = summary[moduleName];
+        const apiObj = summary[moduleName];
+        if (apiObj) {
           StatusOrder.forEach(s => {
             const label = StatusLabels[s];
-            // ✅ Safe check for multiple key formats
             const apiValue =
-              apiObj[s] ??
-              apiObj[label] ??
-              apiObj[s.toLowerCase?.()] ??
+              apiObj[label] ??    // ✅ prefer API long label
+              apiObj[s] ??        // fallback: short key
+              apiObj[s?.toLowerCase?.()] ??
               "-";
             CurrentSummary[moduleName][label] = apiValue;
           });
