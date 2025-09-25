@@ -82,7 +82,7 @@ function updateCardValue(moduleName, label, newValue) {
   });
 }
 
-// Load summary
+// Load summary (with normalization fix)
 function loadSummary() {
   const rangeSelect = document.getElementById("rangeSelect").value;
   if (!rangeSelect) {
@@ -94,8 +94,14 @@ function loadSummary() {
   return fetch("/api/applications/summary?range=" + encodeURIComponent(rangeSelect))
     .then(r => r.json())
     .then(summary => {
+      console.log("Full API Response:", summary);
+      console.log("Ownership Transfer from API:", summary["Ownership Transfer"]);
+
       // reset to "-"
       CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
+
+      // normalize helper
+      const normalize = str => str?.toLowerCase().replace(/\s+/g, " ").trim();
 
       // merge API data
       ModuleOrder.forEach(mKey => {
@@ -104,11 +110,20 @@ function loadSummary() {
         if (apiObj) {
           StatusOrder.forEach(s => {
             const label = StatusLabels[s];
-            const apiValue =
-              apiObj[label] ??    // ✅ prefer API long label
-              apiObj[s] ??        // fallback: short key
-              apiObj[s?.toLowerCase?.()] ??
-              "-";
+            let apiValue = "-";
+
+            // exact match
+            if (apiObj[label] !== undefined) {
+              apiValue = apiObj[label];
+            } else {
+              // normalized match
+              const apiKeys = Object.keys(apiObj);
+              const foundKey = apiKeys.find(k => normalize(k) === normalize(label));
+              if (foundKey) {
+                apiValue = apiObj[foundKey];
+              }
+            }
+
             CurrentSummary[moduleName][label] = apiValue;
           });
         }
@@ -131,7 +146,7 @@ function loadSummary() {
     });
 }
 
-// Enable popup clicks (only 2 tiles)
+// Enable popup clicks
 function enableTileClicks() {
   const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
   if (newAppCard) {
