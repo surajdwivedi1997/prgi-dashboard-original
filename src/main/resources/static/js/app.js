@@ -10,7 +10,7 @@ const ModuleLabels = {
 const StatusLabels = {
   NEW_APPLICATION: "New Applications (Response awaited from Specified Authority within 60 days window)",
   APPLICATION_RECEIVED_FROM_SA: "Applications received from Specified Authority with/without comments after 60 days",
-  DEFICIENT_AWAITING_PUBLISHER: "Deficient – Applications Response awaited from publishers",
+  DEFICIENT_AWAITING_PUBLISHER: "Deficient – Applications Response awaited from publishers", // en-dash
   UNDER_PROCESS_AT_PRGI: "Under Process at PRGI (Above ASO Level)",
   APPLICATION_REJECTED: "Applications Rejected",
   REGISTRATION_GRANTED: "Registration Granted"
@@ -87,6 +87,10 @@ function updateCardValue(moduleName, label, newValue) {
   });
 }
 
+// Normalize helper (fixes dash/space mismatches)
+const normalize = str =>
+  str?.toLowerCase().replace(/[–—-]/g, "-").replace(/\s+/g, " ").trim();
+
 // Load summary
 function loadSummary() {
   const rangeSelect = document.getElementById("rangeSelect").value;
@@ -96,9 +100,7 @@ function loadSummary() {
     return Promise.resolve();
   }
 
-  const [startDate, endDate] = rangeSelect.split("|");
-
-  return fetch(`/api/applications/summary?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`)
+  return fetch("/api/applications/summary?range=" + encodeURIComponent(rangeSelect))
     .then(r => r.json())
     .then(summary => {
       console.log("Full API Response:", summary);
@@ -107,14 +109,26 @@ function loadSummary() {
       // reset to "-"
       CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
-      // merge API data
+      // merge API data with normalization
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
         const apiObj = summary[moduleName];
         if (apiObj) {
           StatusOrder.forEach(s => {
             const label = StatusLabels[s];
-            CurrentSummary[moduleName][label] = apiObj[label] ?? "-";
+            let apiValue = "-";
+
+            // find key with normalization
+            const apiKeys = Object.keys(apiObj);
+            const foundKey = apiKeys.find(
+              k => normalize(k) === normalize(label)
+            );
+
+            if (foundKey) {
+              apiValue = apiObj[foundKey];
+            }
+
+            CurrentSummary[moduleName][label] = apiValue;
           });
         }
       });
@@ -123,7 +137,11 @@ function loadSummary() {
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
         StatusOrder.forEach(s => {
-          updateCardValue(moduleName, StatusLabels[s], CurrentSummary[moduleName][StatusLabels[s]]);
+          updateCardValue(
+            moduleName,
+            StatusLabels[s],
+            CurrentSummary[moduleName][StatusLabels[s]]
+          );
         });
       });
 
@@ -138,14 +156,20 @@ function loadSummary() {
 
 // Enable popup clicks
 function enableTileClicks() {
-  const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
+  const newAppCard = document.getElementById(
+    "card-NEW_REGISTRATION_NEW_APPLICATION"
+  );
   if (newAppCard) {
-    newAppCard.onclick = () => fetchAndShow("/api/new-registration/new-applications", "New Applications");
+    newAppCard.onclick = () =>
+      fetchAndShow("/api/new-registration/new-applications", "New Applications");
   }
 
-  const deficientCard = document.getElementById("card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER");
+  const deficientCard = document.getElementById(
+    "card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER"
+  );
   if (deficientCard) {
-    deficientCard.onclick = () => fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
+    deficientCard.onclick = () =>
+      fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
   }
 }
 
@@ -223,16 +247,22 @@ function exportToExcel() {
       "S.No.": serial++,
       "Nature of Application": moduleName,
       [StatusLabels.NEW_APPLICATION]: summary[StatusLabels.NEW_APPLICATION],
-      [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: summary[StatusLabels.APPLICATION_RECEIVED_FROM_SA],
-      [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: summary[StatusLabels.DEFICIENT_AWAITING_PUBLISHER],
-      [StatusLabels.UNDER_PROCESS_AT_PRGI]: summary[StatusLabels.UNDER_PROCESS_AT_PRGI],
-      [StatusLabels.APPLICATION_REJECTED]: summary[StatusLabels.APPLICATION_REJECTED],
-      [StatusLabels.REGISTRATION_GRANTED]: summary[StatusLabels.REGISTRATION_GRANTED]
+      [StatusLabels.APPLICATION_RECEIVED_FROM_SA]:
+        summary[StatusLabels.APPLICATION_RECEIVED_FROM_SA],
+      [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]:
+        summary[StatusLabels.DEFICIENT_AWAITING_PUBLISHER],
+      [StatusLabels.UNDER_PROCESS_AT_PRGI]:
+        summary[StatusLabels.UNDER_PROCESS_AT_PRGI],
+      [StatusLabels.APPLICATION_REJECTED]:
+        summary[StatusLabels.APPLICATION_REJECTED],
+      [StatusLabels.REGISTRATION_GRANTED]:
+        summary[StatusLabels.REGISTRATION_GRANTED]
     });
   });
   let totalRow = { "S.No.": "", "Nature of Application": "Total" };
   header.slice(2).forEach(label => {
-    let sum = 0, numeric = true;
+    let sum = 0,
+      numeric = true;
     ModuleOrder.forEach(mKey => {
       let val = CurrentSummary[ModuleLabels[mKey]][label];
       if (!isNaN(val)) sum += Number(val);
