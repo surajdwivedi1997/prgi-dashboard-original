@@ -76,12 +76,7 @@ function updateCardValue(moduleName, label, newValue) {
   cards.forEach(card => {
     const status = card.querySelector(".status");
     const count = card.querySelector(".count");
-    if (
-      status &&
-      status.textContent.trim() === label &&
-      count &&
-      card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())
-    ) {
+    if (status && status.textContent.trim() === label && count && card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())) {
       count.textContent = newValue ?? "-";
     }
   });
@@ -99,6 +94,9 @@ function loadSummary() {
   return fetch("/api/applications/summary?range=" + encodeURIComponent(rangeSelect))
     .then(r => r.json())
     .then(summary => {
+      console.log("Full API Response:", summary);
+      console.log("Ownership Transfer from API:", summary["Ownership Transfer"]);
+
       // reset to "-"
       CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
@@ -106,11 +104,16 @@ function loadSummary() {
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
         if (summary[moduleName]) {
+          const apiObj = summary[moduleName];
           StatusOrder.forEach(s => {
             const label = StatusLabels[s];
-            // ✅ Try both short key (e.g., "NEW_APPLICATION") and full label
-            const apiValue = summary[moduleName][s] ?? summary[moduleName][label];
-            CurrentSummary[moduleName][label] = apiValue ?? "-";
+            // ✅ Safe check for multiple key formats
+            const apiValue =
+              apiObj[s] ??
+              apiObj[label] ??
+              apiObj[s.toLowerCase?.()] ??
+              "-";
+            CurrentSummary[moduleName][label] = apiValue;
           });
         }
       });
@@ -132,7 +135,7 @@ function loadSummary() {
     });
 }
 
-// Enable popup clicks (only 2 tiles for demo)
+// Enable popup clicks (only 2 tiles)
 function enableTileClicks() {
   const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
   if (newAppCard) {
