@@ -76,7 +76,12 @@ function updateCardValue(moduleName, label, newValue) {
   cards.forEach(card => {
     const status = card.querySelector(".status");
     const count = card.querySelector(".count");
-    if (status && status.textContent.trim() === label && count && card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())) {
+    if (
+      status &&
+      status.textContent.trim() === label &&
+      count &&
+      card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())
+    ) {
       count.textContent = newValue ?? "-";
     }
   });
@@ -94,32 +99,21 @@ function loadSummary() {
   return fetch("/api/applications/summary?range=" + encodeURIComponent(rangeSelect))
     .then(r => r.json())
     .then(summary => {
-      // reset all modules to "-"
+      // reset to "-"
       CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
-      // merge API data (skip Ownership Transfer)
+      // merge API data
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
-
-        if (moduleName === "Ownership Transfer") return; // 🚫 skip DB for this
-
         if (summary[moduleName]) {
           StatusOrder.forEach(s => {
             const label = StatusLabels[s];
-            CurrentSummary[moduleName][label] = summary[moduleName][label] ?? "-";
+            // ✅ Try both short key (e.g., "NEW_APPLICATION") and full label
+            const apiValue = summary[moduleName][s] ?? summary[moduleName][label];
+            CurrentSummary[moduleName][label] = apiValue ?? "-";
           });
         }
       });
-
-      // ✅ Hardcoded values for Ownership Transfer
-      CurrentSummary["Ownership Transfer"] = {
-        [StatusLabels.NEW_APPLICATION]: "15",
-        [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: "5",
-        [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: "7",
-        [StatusLabels.UNDER_PROCESS_AT_PRGI]: "12",
-        [StatusLabels.APPLICATION_REJECTED]: "3",
-        [StatusLabels.REGISTRATION_GRANTED]: "8"
-      };
 
       // update UI
       ModuleOrder.forEach(mKey => {
@@ -138,7 +132,7 @@ function loadSummary() {
     });
 }
 
-// Enable popup clicks (only 2 tiles)
+// Enable popup clicks (only 2 tiles for demo)
 function enableTileClicks() {
   const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
   if (newAppCard) {
