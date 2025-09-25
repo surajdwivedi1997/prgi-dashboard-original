@@ -76,22 +76,16 @@ function updateCardValue(moduleName, label, newValue) {
   cards.forEach(card => {
     const status = card.querySelector(".status");
     const count = card.querySelector(".count");
-    if (
-      status &&
-      status.textContent.trim() === label &&
-      count &&
-      card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())
-    ) {
+    if (status && status.textContent.trim() === label && count && card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())) {
       count.textContent = newValue ?? "-";
     }
   });
 }
 
-// Load summary
+// Load summary (with normalization fix)
 function loadSummary() {
   const rangeSelect = document.getElementById("rangeSelect").value;
   if (!rangeSelect) {
-    // reset to "-"
     CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
     buildShell();
     return Promise.resolve();
@@ -101,20 +95,36 @@ function loadSummary() {
     .then(r => r.json())
     .then(summary => {
       console.log("Full API Response:", summary);
+      console.log("Ownership Transfer from API:", summary["Ownership Transfer"]);
 
-      // start fresh with all "-"
+      // reset to "-"
       CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
-      // merge API values
+      // normalize helper
+      const normalize = str => str?.toLowerCase().replace(/\s+/g, " ").trim();
+
+      // merge API data
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
         const apiObj = summary[moduleName];
         if (apiObj) {
+          const apiKeys = Object.keys(apiObj);
           StatusOrder.forEach(s => {
             const label = StatusLabels[s];
+            let apiValue = "-";
+
+            // try exact match
             if (apiObj[label] !== undefined) {
-              CurrentSummary[moduleName][label] = apiObj[label];
+              apiValue = apiObj[label];
+            } else {
+              // try normalized match
+              const foundKey = apiKeys.find(k => normalize(k) === normalize(label));
+              if (foundKey) {
+                apiValue = apiObj[foundKey];
+              }
             }
+
+            CurrentSummary[moduleName][label] = apiValue;
           });
         }
       });
@@ -230,6 +240,17 @@ function exportToExcel() {
       [StatusLabels.REGISTRATION_GRANTED]: summary[StatusLabels.REGISTRATION_GRANTED]
     });
   });
+  let totalRow = { "S.No.": "", "Nature of Application": "Total" };
+  header.slice(2).forEach(label => {
+    let sum = 0, numeric = true;
+    ModuleOrder.forEach(mKey => {
+      let val = CurrentSummary[ModuleLabels[mKey]][label];
+      if (!isNaN(val)) sum += Number(val);
+      else numeric = false;
+    });
+    totalRow[label] = numeric ? sum : "";
+  });
+  rows.push(totalRow);
   let ws = XLSX.utils.json_to_sheet(rows, { header });
   XLSX.utils.book_append_sheet(wb, ws, "Application Summary");
   XLSX.writeFile(wb, "Application_Summary.xlsx");
