@@ -27,7 +27,7 @@ const StatusOrder = [
 
 const ModuleOrder = Object.keys(ModuleLabels);
 
-// 🔹 Default all "-" (fallback values)
+// 🔹 Default all "-"
 const DefaultSummary = {};
 ModuleOrder.forEach(m => {
   DefaultSummary[ModuleLabels[m]] = {};
@@ -76,18 +76,13 @@ function updateCardValue(moduleName, label, newValue) {
   cards.forEach(card => {
     const status = card.querySelector(".status");
     const count = card.querySelector(".count");
-    if (
-      status &&
-      status.textContent.trim() === label &&
-      count &&
-      card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())
-    ) {
+    if (status && status.textContent.trim() === label && count && card.id.includes(moduleName.replace(/\s+/g, "_").toUpperCase())) {
       count.textContent = newValue ?? "-";
     }
   });
 }
 
-// Load summary
+// Load summary (✅ fixed to send startDate & endDate)
 function loadSummary() {
   const rangeSelect = document.getElementById("rangeSelect").value;
   if (!rangeSelect) {
@@ -96,34 +91,30 @@ function loadSummary() {
     return Promise.resolve();
   }
 
-  return fetch("/api/applications/summary?range=" + encodeURIComponent(rangeSelect))
+  const [start, end] = rangeSelect.split("|");
+
+  return fetch(`/api/applications/summary?startDate=${encodeURIComponent(start)}&endDate=${encodeURIComponent(end)}`)
     .then(r => r.json())
     .then(summary => {
-      // ✅ Reset to defaults first
+      // reset to "-"
       CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
-      // ✅ Merge API data over defaults
+      // merge API data
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
         if (summary[moduleName]) {
           StatusOrder.forEach(s => {
             const label = StatusLabels[s];
-            if (summary[moduleName][label] !== undefined) {
-              CurrentSummary[moduleName][label] = summary[moduleName][label];
-            }
+            CurrentSummary[moduleName][label] = summary[moduleName][label] ?? "-";
           });
         }
       });
 
-      // ✅ Update UI
+      // update UI
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
         StatusOrder.forEach(s => {
-          updateCardValue(
-            moduleName,
-            StatusLabels[s],
-            CurrentSummary[moduleName][StatusLabels[s]]
-          );
+          updateCardValue(moduleName, StatusLabels[s], CurrentSummary[moduleName][StatusLabels[s]]);
         });
       });
 
@@ -140,16 +131,12 @@ function loadSummary() {
 function enableTileClicks() {
   const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
   if (newAppCard) {
-    newAppCard.onclick = () =>
-      fetchAndShow("/api/new-registration/new-applications", "New Applications");
+    newAppCard.onclick = () => fetchAndShow("/api/new-registration/new-applications", "New Applications");
   }
 
-  const deficientCard = document.getElementById(
-    "card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER"
-  );
+  const deficientCard = document.getElementById("card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER");
   if (deficientCard) {
-    deficientCard.onclick = () =>
-      fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
+    deficientCard.onclick = () => fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
   }
 }
 
@@ -236,8 +223,7 @@ function exportToExcel() {
   });
   let totalRow = { "S.No.": "", "Nature of Application": "Total" };
   header.slice(2).forEach(label => {
-    let sum = 0,
-      numeric = true;
+    let sum = 0, numeric = true;
     ModuleOrder.forEach(mKey => {
       let val = CurrentSummary[ModuleLabels[mKey]][label];
       if (!isNaN(val)) sum += Number(val);
