@@ -10,7 +10,7 @@ const ModuleLabels = {
 const StatusLabels = {
   NEW_APPLICATION: "New Applications (Response awaited from Specified Authority within 60 days window)",
   APPLICATION_RECEIVED_FROM_SA: "Applications received from Specified Authority with/without comments after 60 days",
-  DEFICIENT_AWAITING_PUBLISHER: "Deficient – Applications Response awaited from publishers", // en-dash
+  DEFICIENT_AWAITING_PUBLISHER: "Deficient – Applications Response awaited from publishers",
   UNDER_PROCESS_AT_PRGI: "Under Process at PRGI (Above ASO Level)",
   APPLICATION_REJECTED: "Applications Rejected",
   REGISTRATION_GRANTED: "Registration Granted"
@@ -38,6 +38,34 @@ ModuleOrder.forEach(m => {
 
 // 🔹 Current summary
 let CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
+
+// 🔹 Normalization helper
+const normalize = str =>
+  str?.toLowerCase().replace(/[–—-]/g, "-").replace(/\s+/g, " ").trim();
+
+// 🔹 Smart lookup
+const findApiValue = (apiObj, label) => {
+  if (!apiObj) return "-";
+
+  // exact match
+  if (apiObj[label] !== undefined) return apiObj[label];
+
+  const apiKeys = Object.keys(apiObj);
+  const normLabel = normalize(label);
+
+  // normalized match
+  let foundKey = apiKeys.find(k => normalize(k) === normLabel);
+  if (foundKey) return apiObj[foundKey];
+
+  // fallback: contains
+  foundKey = apiKeys.find(
+    k =>
+      normalize(k).includes(normLabel) || normLabel.includes(normalize(k))
+  );
+  if (foundKey) return apiObj[foundKey];
+
+  return "-";
+};
 
 // Build modules/cards
 function buildShell() {
@@ -87,10 +115,6 @@ function updateCardValue(moduleName, label, newValue) {
   });
 }
 
-// Normalize helper (fixes dash/space mismatches)
-const normalize = str =>
-  str?.toLowerCase().replace(/[–—-]/g, "-").replace(/\s+/g, " ").trim();
-
 // Load summary
 function loadSummary() {
   const rangeSelect = document.getElementById("rangeSelect").value;
@@ -109,26 +133,14 @@ function loadSummary() {
       // reset to "-"
       CurrentSummary = JSON.parse(JSON.stringify(DefaultSummary));
 
-      // merge API data with normalization
+      // merge API data
       ModuleOrder.forEach(mKey => {
         const moduleName = ModuleLabels[mKey];
         const apiObj = summary[moduleName];
         if (apiObj) {
           StatusOrder.forEach(s => {
             const label = StatusLabels[s];
-            let apiValue = "-";
-
-            // find key with normalization
-            const apiKeys = Object.keys(apiObj);
-            const foundKey = apiKeys.find(
-              k => normalize(k) === normalize(label)
-            );
-
-            if (foundKey) {
-              apiValue = apiObj[foundKey];
-            }
-
-            CurrentSummary[moduleName][label] = apiValue;
+            CurrentSummary[moduleName][label] = findApiValue(apiObj, label);
           });
         }
       });
@@ -156,17 +168,13 @@ function loadSummary() {
 
 // Enable popup clicks
 function enableTileClicks() {
-  const newAppCard = document.getElementById(
-    "card-NEW_REGISTRATION_NEW_APPLICATION"
-  );
+  const newAppCard = document.getElementById("card-NEW_REGISTRATION_NEW_APPLICATION");
   if (newAppCard) {
     newAppCard.onclick = () =>
       fetchAndShow("/api/new-registration/new-applications", "New Applications");
   }
 
-  const deficientCard = document.getElementById(
-    "card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER"
-  );
+  const deficientCard = document.getElementById("card-NEW_REGISTRATION_DEFICIENT_AWAITING_PUBLISHER");
   if (deficientCard) {
     deficientCard.onclick = () =>
       fetchAndShow("/api/new-registration/deficient", "Deficient Applications");
@@ -247,16 +255,11 @@ function exportToExcel() {
       "S.No.": serial++,
       "Nature of Application": moduleName,
       [StatusLabels.NEW_APPLICATION]: summary[StatusLabels.NEW_APPLICATION],
-      [StatusLabels.APPLICATION_RECEIVED_FROM_SA]:
-        summary[StatusLabels.APPLICATION_RECEIVED_FROM_SA],
-      [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]:
-        summary[StatusLabels.DEFICIENT_AWAITING_PUBLISHER],
-      [StatusLabels.UNDER_PROCESS_AT_PRGI]:
-        summary[StatusLabels.UNDER_PROCESS_AT_PRGI],
-      [StatusLabels.APPLICATION_REJECTED]:
-        summary[StatusLabels.APPLICATION_REJECTED],
-      [StatusLabels.REGISTRATION_GRANTED]:
-        summary[StatusLabels.REGISTRATION_GRANTED]
+      [StatusLabels.APPLICATION_RECEIVED_FROM_SA]: summary[StatusLabels.APPLICATION_RECEIVED_FROM_SA],
+      [StatusLabels.DEFICIENT_AWAITING_PUBLISHER]: summary[StatusLabels.DEFICIENT_AWAITING_PUBLISHER],
+      [StatusLabels.UNDER_PROCESS_AT_PRGI]: summary[StatusLabels.UNDER_PROCESS_AT_PRGI],
+      [StatusLabels.APPLICATION_REJECTED]: summary[StatusLabels.APPLICATION_REJECTED],
+      [StatusLabels.REGISTRATION_GRANTED]: summary[StatusLabels.REGISTRATION_GRANTED]
     });
   });
   let totalRow = { "S.No.": "", "Nature of Application": "Total" };
